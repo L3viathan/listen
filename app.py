@@ -1,5 +1,5 @@
 import string
-from sanic import Sanic, file, html
+from sanic import Sanic, file, html, redirect
 from database import Runbook, Section, Item, Run, Target
 
 
@@ -33,6 +33,7 @@ async def direct_run(request, run_id: int):
 @app.get("/runbooks")
 async def list_runbooks(request):
     return f"""
+        {Runbook.load_input()}
         {"\n\n".join(f"{lst:link}" for lst in Runbook.all())}
         {Runbook.new_runbook_input()}
     """
@@ -56,7 +57,7 @@ async def new_item(request, section_id: int):
     item = Item.create(name=name, section_id=section_id)
     return f"""
         {item:detail}
-        {Section.new_item_input(section_id)}
+        {Section.new_item_input(section_id, focus=True)}
     """
 
 
@@ -98,6 +99,23 @@ async def change_runbook(request, runbook_id: int):
     if name:
         runbook.rename(name)
     return f"{runbook:heading}"
+
+
+@app.post("/runbooks/load")
+async def load_runbook(request):
+    code = request.form.get("code")
+    runbook = Runbook.load(code)
+    return redirect(f"/runbooks/{runbook.id}")
+
+
+@app.get("/runbooks/dump/<runbook_id>")
+async def dump_runbook(request, runbook_id: int):
+    runbook = Runbook.from_id(runbook_id)
+    return f"""<script>
+    window.prompt('Press Ctrl+C, Enter', '{runbook:dump_data}');
+    </script>
+    {runbook:dump_button}
+    """
 
 
 @app.post("/runs/change/<run_id>")

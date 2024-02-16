@@ -1,3 +1,6 @@
+import base64
+import gzip
+import json
 import psycopg
 from psycopg.rows import dict_row
 
@@ -166,10 +169,16 @@ class Runbook(Entity):
             >{self.name}</h1>
             """
 
+        elif fmt == "dump_button":
+            return f"""<a
+                hx-get="/runbooks/dump/{self.id}"
+                class="top-right large-icon actionable"
+            >📋</a>"""
         elif fmt == "detail":
             return f"""
             <a class="noprint" href="/">↰ Runbooks</a><br>
             {self:heading}
+            {self:dump_button}
 
             {"\n".join(f"{section:detail}" for section in self.sections)}
 
@@ -178,8 +187,41 @@ class Runbook(Entity):
             <hr>
             {self:runs}
             """
+        elif fmt == "dump_data":
+            return base64.b85encode(
+                b"\x00" + gzip.compress(
+                    json.dumps(self.dump(), ensure_ascii=True).encode("utf-8"),
+                ),
+            ).decode("utf-8")
         else:
             raise f"unknown format code {fmt}"
+
+    def dump(self):
+        return [self.name, [section.dump() for section in self.sections]]
+
+    @classmethod
+    def load(cls, code):
+        a = base64.b85decode(code)
+        version, b = a[0], a[1:]
+        assert version == 0
+        name, sections = json.loads(gzip.decompress(b).decode("utf-8"))
+        runbook = cls.create(name=name)
+        for section_name, items in sections:
+            section = Section.create(name=section_name, runbook_id=runbook.id)
+            for name, type in items:
+                Item.create(name=name, type=type, section_id=section.id)
+        return runbook
+
+    @staticmethod
+    def load_input():
+        return """<input
+            hx-post="/runbooks/load"
+            hx-target="#container"
+            hx-trigger="keydown[key=='Enter']"
+            class="top-right"
+            name="code"
+            placeholder="Enter share code"
+        >"""
 
 
 class Section(Entity):
@@ -191,14 +233,14 @@ class Section(Entity):
         self.mutate(name=new_name)
 
     @staticmethod
-    def new_item_input(id):
+    def new_item_input(id, focus=False):
         return f"""<input
             type="text"
             name="name"
             placeholder="New item"
             hx-swap="outerHTML"
             hx-post="/items/new/{id}"
-            autofocus
+            {"autofocus" if focus else ""}
         >"""
 
     def __format__(self, fmt):
@@ -227,6 +269,9 @@ class Section(Entity):
             """
         elif fmt == "additem":
             return self.new_item_input(self.id)
+
+    def dump(self):
+        return [self.name, [item.dump() for item in self.items]]
 
 
 class Item(Entity):
@@ -278,7 +323,9 @@ class Item(Entity):
                         hx-swap="outerHTML"
                         hx-target="closest li.multi"
                         hx-post="/checkmarks/check/{run.id}/{self.id}/{target.id}"
-                    ><div class="multilabel target target-{i}">{target.name}</div></li>'''
+                    ><div
+                        class="multilabel target target-{i}"
+                    >{target.name}</div></li>'''
                     for i, target in enumerate(run.targets)
                 )}
                 </ul>
@@ -351,6 +398,9 @@ class Item(Entity):
 
     def rename(self, new_name):
         self.mutate(name=new_name)
+
+    def dump(self):
+        return [self.name, self.type]
 
 
 class Run(Entity):
