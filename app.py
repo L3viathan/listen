@@ -27,7 +27,6 @@ async def direct_runbook(request, runbook_id: int):
 
 @app.get("/_/runs/<run_id>")
 async def direct_run(request, run_id: int):
-    run_id = int(request.path_params.get("run_id"))
     return INDEX.substitute(autoload=f"/runs/{run_id}")
 
 
@@ -52,7 +51,7 @@ async def view_runbook(request, runbook_id: int):
 
 @app.post("/items/new/<section_id>")
 async def new_item(request, section_id: int):
-    name = request.form.get("q")
+    name = request.form.get("name")
     section_id = int(section_id)
     item = Item.create(name=name, section_id=section_id)
     return f"""

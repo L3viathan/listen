@@ -198,6 +198,7 @@ class Section(Entity):
             placeholder="New item"
             hx-swap="outerHTML"
             hx-post="/items/new/{id}"
+            autofocus
         >"""
 
     def __format__(self, fmt):
@@ -429,6 +430,7 @@ class Run(Entity):
             placeholder="New target"
             hx-target="#container"
             hx-post="/targets/new/{self.id}"
+            autofocus
         >
         """
 
