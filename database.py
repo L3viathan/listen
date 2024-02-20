@@ -340,16 +340,16 @@ class Item(Entity):
                 {"\n".join(
                     f'''<li
                         class="{self.css_classes(checked.get(target.id))}"
+                        hx-post="/checkmarks/check/{run.id}/{self.id}/{target.id}"
                         hx-swap="outerHTML"
                         hx-target="closest li.multi"
                         hx-trigger="click[!ctrlKey]"
-                        hx-post="/checkmarks/check/{run.id}/{self.id}/{target.id}"
                     >
                     <span
                         hx-post="/checkmarks/disable/{run.id}/{self.id}/{target.id}"
                         hx-swap="outerHTML"
                         hx-target="closest li.multi"
-                        hx-trigger="click[ctrlKey] from:closest li"
+                        hx-trigger="click[ctrlKey] from:(closest li)"
                     ></span>
                     <div
                         class="multilabel target target-{i}"
