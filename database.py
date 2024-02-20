@@ -300,14 +300,34 @@ class Item(Entity):
                 return "∀"
             return "1"
 
+    @staticmethod
+    def css_classes(check_state):
+        if check_state is None:
+            return "unchecked actionable"
+        elif check_state == "normal":
+            return "checked actionable"
+        else:
+            return "disabled"
+
     def as_checkbox(self, run, checked):
+        # checked is a dict like {None: "normal"|"not applicable"}
         if self.type == "once":
+            classes = self.css_classes(checked.get(None))
+
             return f"""
                 <li
                     hx-post="/checkmarks/check/{run.id}/{self.id}"
                     hx-swap="outerHTML"
-                    class="{"" if checked else "un"}checked actionable"
-                >{self.name}</li>
+                    hx-trigger="click[!ctrlKey]"
+                    class="{classes}"
+                >{self.name}
+                    <span
+                        hx-post="/checkmarks/disable/{run.id}/{self.id}"
+                        hx-swap="outerHTML"
+                        hx-target="closest li"
+                        hx-trigger="click[ctrlKey] from:closest li"
+                    ></span>
+                </li>
             """
         else:
             if len(checked) == len(run.targets):
@@ -319,11 +339,19 @@ class Item(Entity):
                 <ul>
                 {"\n".join(
                     f'''<li
-                        class="{"" if target.id in checked else "un"}checked actionable"
+                        class="{self.css_classes(checked.get(target.id))}"
                         hx-swap="outerHTML"
                         hx-target="closest li.multi"
+                        hx-trigger="click[!ctrlKey]"
                         hx-post="/checkmarks/check/{run.id}/{self.id}/{target.id}"
-                    ><div
+                    >
+                    <span
+                        hx-post="/checkmarks/disable/{run.id}/{self.id}/{target.id}"
+                        hx-swap="outerHTML"
+                        hx-target="closest li.multi"
+                        hx-trigger="click[ctrlKey] from:closest li"
+                    ></span>
+                    <div
                         class="multilabel target target-{i}"
                     >{target.name}</div></li>'''
                     for i, target in enumerate(run.targets)
@@ -336,7 +364,8 @@ class Item(Entity):
         new_type = "once" if self.type == "each" else "each"
         self.mutate(type=new_type)
 
-    def check_for(self, run, target_id=None):
+    def check_for(self, run, target_id=None, disable=False):
+        type = "not applicable" if disable else "normal"
         with psycopg.connect(DB_SPEC, row_factory=dict_row) as conn:
             checked_target_ids = [
                 row["target_id"]
@@ -352,28 +381,34 @@ class Item(Entity):
             if self.type == "once":
                 if checked_target_ids:
                     conn.execute(
-                        """
+                        f"""
                             DELETE FROM checkmarks
                             WHERE run_id=%(run_id)s AND item_id=%(item_id)s
+                            {"" if disable else "AND type <> 'not applicable'"}
                         """,
                         {"run_id": run.id, "item_id": self.id},
                     )
                 else:
                     conn.execute(
                         """
-                            INSERT INTO checkmarks (run_id, item_id)
-                            VALUES (%(run_id)s, %(item_id)s)
+                            INSERT INTO checkmarks (run_id, item_id, type)
+                            VALUES (%(run_id)s, %(item_id)s, %(type)s)
                         """,
-                        {"run_id": run.id, "item_id": self.id},
+                        {
+                            "run_id": run.id,
+                            "item_id": self.id,
+                            "type": type,
+                        },
                     )
             else:
                 if target_id in checked_target_ids:
                     conn.execute(
-                        """
+                        f"""
                             DELETE FROM checkmarks
                             WHERE run_id=%(run_id)s
                                 AND item_id=%(item_id)s
                                 AND target_id=%(target_id)s
+                            {"" if disable else "AND type <> 'not applicable'"}
                         """,
                         {
                             "run_id": run.id,
@@ -384,17 +419,18 @@ class Item(Entity):
                 else:
                     conn.execute(
                         """
-                            INSERT INTO checkmarks (run_id, item_id, target_id)
-                            VALUES (%(run_id)s, %(item_id)s, %(target_id)s)
+                            INSERT INTO checkmarks (run_id, item_id, target_id, type)
+                            VALUES (%(run_id)s, %(item_id)s, %(target_id)s, %(type)s)
                         """,
                         {
                             "run_id": run.id,
                             "item_id": self.id,
                             "target_id": target_id,
+                            "type": type,
                         },
                     )
             conn.commit()
-            return self.as_checkbox(run, run.get_checked().get(self.id, []))
+            return self.as_checkbox(run, run.get_checked().get(self.id, {}))
 
     def rename(self, new_name):
         self.mutate(name=new_name)
@@ -446,7 +482,7 @@ class Run(Entity):
             for section in Runbook.from_id(self.runbook_id).sections:
                 rows.append(f"<section><h2>{section.name}</h2><ul>")
                 for item in section.items:
-                    rows.append(item.as_checkbox(self, checked.get(item.id, [])))
+                    rows.append(item.as_checkbox(self, checked.get(item.id, {})))
                 rows.append("</ul></section>")
             return "\n".join(rows)
 
@@ -456,9 +492,9 @@ class Run(Entity):
     def get_checked(self):
         checked = {}
         with psycopg.connect(DB_SPEC) as conn:
-            for target_id, item_id in conn.execute(
+            for target_id, item_id, type in conn.execute(
                 """
-                    SELECT target_id, item_id
+                    SELECT target_id, item_id, type
                     FROM checkmarks
                     WHERE run_id=%(run_id)s
                 """,
@@ -466,7 +502,7 @@ class Run(Entity):
                     "run_id": self.id,
                 },
             ).fetchall():
-                checked.setdefault(item_id, []).append(target_id)
+                checked.setdefault(item_id, {})[target_id] = type
         return checked
 
     @property

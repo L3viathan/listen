@@ -6,6 +6,9 @@ with psycopg.connect("dbname=listen user=jo") as conn:
         DROP TYPE IF EXISTS itemtype CASCADE;
         CREATE TYPE itemtype AS ENUM ('each', 'once');
 
+        DROP TYPE IF EXISTS checktype CASCADE;
+        CREATE TYPE checktype AS ENUM ('normal', 'not applicable');
+
         DROP TABLE IF EXISTS runbooks CASCADE;
         CREATE TABLE runbooks (
           id SERIAL PRIMARY KEY,
@@ -48,19 +51,8 @@ with psycopg.connect("dbname=listen user=jo") as conn:
           id SERIAL PRIMARY KEY,
           run_id INTEGER REFERENCES runs (id) ON DELETE CASCADE,
           item_id INTEGER REFERENCES items (id) ON DELETE CASCADE,
-          target_id INTEGER REFERENCES targets (id) ON DELETE CASCADE
+          target_id INTEGER REFERENCES targets (id) ON DELETE CASCADE,
+          type checktype DEFAULT 'normal'
         );
-
-        INSERT INTO runbooks (name)
-            VALUES ('Packliste');
-
-        INSERT INTO sections (runbook_id, name, rank)
-            VALUES (1, 'Section One', 1), (1, 'Section Two', 2);
-
-        INSERT INTO items (section_id, name, rank)
-            VALUES (1, 'Item #1', 1), (1, 'Item #2', 2), (2, 'Item #3', 1);
-
-        INSERT INTO runs (runbook_id, name)
-            VALUES (1, 'Tirol 2024');
     """
     )

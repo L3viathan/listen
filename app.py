@@ -163,6 +163,25 @@ async def view_run(request, run_id: int):
     return f"{run:detail}"
 
 
+@app.post("/checkmarks/disable/<run_id>/<item_id>")
+async def disable_checkmark(request, run_id: int, item_id: int):
+    item = Item.from_id(item_id)
+    run = Run.from_id(run_id)
+    return item.check_for(run, disable=True)
+
+
+@app.post("/checkmarks/disable/<run_id>/<item_id>/<target_id>")
+async def disable_checkmark_for_target(
+    request,
+    run_id: int,
+    item_id: int,
+    target_id: int,
+):
+    item = Item.from_id(item_id)
+    run = Run.from_id(run_id)
+    return item.check_for(run, target_id=target_id, disable=True)
+
+
 @app.post("/checkmarks/check/<run_id>/<item_id>")
 async def check_checkmark(request, run_id: int, item_id: int):
     item = Item.from_id(item_id)
