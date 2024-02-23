@@ -1,0 +1,31 @@
+[project]
+name = "listen"
+version = "0.1.0"
+description = "List templates and stuff. Reusable."
+authors = [
+    {name = "L3viathan", email = "git@l3vi.de"},
+]
+dependencies = [
+    "sanic>=23.12.1",
+    "psycopg[binary]>=3.1.18",
+    "setuptools>=69.1.0",
+]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+
+[project.scripts]
+listen = "listen.app:app"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.build]
+includes = ["listen"]
+
+[tool.pdm.scripts]
+server = "sanic listen.app:app"

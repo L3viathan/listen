@@ -1,10 +1,12 @@
 import string
+from pathlib import Path
 from sanic import Sanic, file, html, redirect
-from database import Runbook, Section, Item, Run, Target
+from .database import Runbook, Section, Item, Run, Target
 
 
 app = Sanic("listen")
-with open("index.html") as f:
+root = Path(__file__).parent
+with (root / "index.html").open() as f:
     INDEX = string.Template(f.read())
 
 
@@ -211,14 +213,14 @@ async def new_target(request, run_id: int):
 
 @app.get("/vendor/htmx.min.js")
 async def _htmx_js(request):
-    return await file("./htmx.min.js")
+    return await file(root / "htmx.min.js")
 
 
 @app.get("/vendor/Satisfy-Regular.woff2")
 async def _satisfy_font(request):
-    return await file("./Satisfy-Regular.woff2")
+    return await file(root / "Satisfy-Regular.woff2")
 
 
 @app.get("/favicon.ico")
 async def _favicon(request):
-    return await file("favicon.ico")
+    return await file(root / "favicon.ico")
